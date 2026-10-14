@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bbvaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#004481" />
+      <stop offset="50%" stop-color="#043263" />
+      <stop offset="100%" stop-color="#001844" />
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="url(#bbvaGrad)"/>
+  
+  <!-- Stylized BBVA Logo -->
+  <g fill="#ffffff" transform="translate(64, 180)">
+    <!-- First B -->
+    <path d="M 0 0 L 55 0 C 85 0 100 12 100 35 C 100 48 92 60 78 68 C 96 76 106 90 106 112 C 106 138 88 152 55 152 L 0 152 Z M 32 30 L 32 60 L 52 60 C 65 60 72 54 72 45 C 72 36 65 30 52 30 Z M 32 90 L 32 122 L 55 122 C 70 122 78 114 78 106 C 78 97 70 90 55 90 Z"/>
+    
+    <!-- Second B -->
+    <path d="M 120 0 L 175 0 C 205 0 220 12 220 35 C 220 48 212 60 198 68 C 216 76 226 90 226 112 C 226 138 208 152 175 152 L 120 152 Z M 152 30 L 152 60 L 172 60 C 185 60 192 54 192 45 C 192 36 185 30 172 30 Z M 152 90 L 152 122 L 175 122 C 190 122 198 114 198 106 C 198 97 190 90 175 90 Z"/>
+    
+    <!-- V -->
+    <path d="M 240 0 L 275 0 L 305 110 L 335 0 L 370 0 L 322 152 L 288 152 Z"/>
+    
+    <!-- A (apex style without horizontal crossbar) -->
+    <path d="M 360 152 L 400 0 L 435 0 L 475 152 L 442 152 L 433 115 L 402 115 L 393 152 Z M 408 85 L 427 85 L 417.5 40 Z"/>
+  </g>
+</svg>

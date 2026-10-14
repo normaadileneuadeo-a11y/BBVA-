@@ -1,0 +1,6 @@
+{
+  "name": "BBVA México - Banca Móvil PWA",
+  "description": "Aplicación progresiva PWA de BBVA México para transferencias SPEI, consulta de saldos y comprobantes digitales.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
