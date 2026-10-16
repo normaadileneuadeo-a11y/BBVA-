@@ -245,6 +245,95 @@ function transferApiPlugin(): Plugin {
         res.end(JSON.stringify({ error: 'Method not allowed' }));
       });
 
+      // Transfers persistence endpoint (syncs real transfers between all accounts in this environment)
+      server.middlewares.use('/api/transfers', async (req, res) => {
+        const transfersFilePath = path.resolve(process.cwd(), 'data', 'transfers.json');
+        const readTransfersFromFile = () => {
+          try {
+            if (fs.existsSync(transfersFilePath)) {
+              const content = fs.readFileSync(transfersFilePath, 'utf-8');
+              return JSON.parse(content || '[]');
+            }
+          } catch (e) {
+            console.error('Error reading transfers file:', e);
+          }
+          return [];
+        };
+
+        const writeTransfersToFile = (items: any[]) => {
+          try {
+            const dir = path.dirname(transfersFilePath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(transfersFilePath, JSON.stringify(items, null, 2), 'utf-8');
+          } catch (e) {
+            console.error('Error writing transfers file:', e);
+          }
+        };
+
+        res.setHeader('Content-Type', 'application/json');
+
+        if (req.method === 'GET') {
+          const list = readTransfersFromFile();
+          res.statusCode = 200;
+          res.end(JSON.stringify(list));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const item = JSON.parse(body || '{}');
+              const list = readTransfersFromFile();
+              const existingIdx = list.findIndex((t: any) => t.id === item.id);
+              if (existingIdx !== -1) {
+                list[existingIdx] = { ...list[existingIdx], ...item };
+              } else {
+                list.unshift(item);
+              }
+              writeTransfersToFile(list);
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true, item, transfers: list }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'PUT') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              if (Array.isArray(data.transfers)) {
+                const current = readTransfersFromFile();
+                const map = new Map<string, any>();
+                current.forEach((t: any) => map.set(t.id, t));
+                data.transfers.forEach((t: any) => map.set(t.id, { ...map.get(t.id), ...t }));
+                const merged = Array.from(map.values());
+                writeTransfersToFile(merged);
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, transfers: merged }));
+                return;
+              }
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid payload' }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        res.statusCode = 405;
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+      });
+
       server.middlewares.use('/api/analyze-receipt', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;

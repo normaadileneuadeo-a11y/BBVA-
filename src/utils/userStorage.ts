@@ -576,7 +576,8 @@ export function executeTransfer(
   amount: number,
   concept: string,
   reference: string = '123456',
-  destinationBank: string = 'BBVA México'
+  destinationBank: string = 'BBVA México',
+  recipientUserId?: string
 ): {
   success: boolean;
   message: string;
@@ -600,20 +601,37 @@ export function executeTransfer(
   }
 
   // Buscar si el destinatario es un usuario interno de la app
-  const queryClean = recipientQuery.replace(/\s+/g, '').toLowerCase();
+  const queryClean = recipientQuery.replace(/\s+/g, '').toLowerCase().trim();
+  const queryDigits = recipientQuery.replace(/[^0-9]/g, '');
+
   const recipientIndex = users.findIndex((u) => {
     if (u.id === senderId) return false;
-    const clabeClean = u.clabe.replace(/\s+/g, '').toLowerCase();
-    const cardClean = u.cardNumber.replace(/\s+/g, '').toLowerCase();
-    const emailClean = u.email.replace(/\s+/g, '').toLowerCase();
-    const nameClean = u.name.replace(/\s+/g, '').toLowerCase();
+    // 1. Coincidencia por ID explícito
+    if (recipientUserId && u.id === recipientUserId) return true;
+    if (u.id === recipientQuery) return true;
 
-    return (
-      clabeClean.includes(queryClean) ||
-      cardClean.includes(queryClean) ||
-      emailClean === queryClean ||
-      nameClean.includes(queryClean)
-    );
+    // 2. Coincidencia por dígitos de CLABE o tarjeta
+    const clabeDigits = u.clabe.replace(/[^0-9]/g, '');
+    const cardDigits = u.cardNumber.replace(/[^0-9]/g, '');
+    const cardLast4 = u.cardLast4.replace(/[^0-9]/g, '');
+
+    if (queryDigits.length >= 4) {
+      if (cardLast4 === queryDigits) return true;
+      if (clabeDigits.includes(queryDigits)) return true;
+      if (cardDigits.includes(queryDigits)) return true;
+    }
+
+    // 3. Coincidencia por nombre completo o parcial
+    const nameClean = u.name.toLowerCase().trim();
+    if (nameClean && queryClean) {
+      if (nameClean === queryClean) return true;
+      if (nameClean.includes(queryClean) || queryClean.includes(nameClean)) return true;
+    }
+
+    // 4. Coincidencia por correo
+    if (u.email && u.email.toLowerCase().trim() === queryClean) return true;
+
+    return false;
   });
 
   const now = new Date();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Menu,
   Bell, 
@@ -39,11 +39,13 @@ import { formatCurrency, formatDate } from '../utils/transferParser';
 import { BBVALogo } from './BBVALogo';
 import { PWAInstallButton } from './PWAInstallButton';
 import { BBVANotificationsModal } from './BBVANotificationsModal';
-import { getStoredUsers } from '../utils/userStorage';
+import { getStoredUsers, createNewAccount } from '../utils/userStorage';
+import { sounds } from '../utils/soundEffects';
 
 interface BBVAHomeScreenProps {
   user: BankUser;
   onLogout: () => void;
+  onSwitchUser?: (user: BankUser) => void;
   onStartTransfer: () => void;
   onSelectVoucher: (transfer: TransferItem) => void;
   onOpenFolderManager: () => void;
@@ -55,6 +57,7 @@ interface BBVAHomeScreenProps {
 export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
   user,
   onLogout,
+  onSwitchUser,
   onStartTransfer,
   onSelectVoucher,
   onOpenFolderManager,
@@ -74,6 +77,46 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
   const [dynamicToken, setDynamicToken] = useState('749 203');
   const [movementFilter, setMovementFilter] = useState<'todos' | 'egresos' | 'ingresos'>('todos');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Account Switcher Modal State (Switch seamlessly between all registered users in environment)
+  const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState<BankUser[]>(() => getStoredUsers());
+  const [showCreateClientModal, setShowCreateClientModal] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientBalance, setNewClientBalance] = useState('35000');
+  const [newClientPhone, setNewClientPhone] = useState('667 123 4567');
+
+  // Keep registered users in sync
+  useEffect(() => {
+    const handleUsersChange = () => {
+      setRegisteredUsers(getStoredUsers());
+    };
+    window.addEventListener('bbva_users_changed', handleUsersChange);
+    return () => window.removeEventListener('bbva_users_changed', handleUsersChange);
+  }, []);
+
+  const handleCreateClientSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClientName.trim() || !newClientEmail.trim()) {
+      alert('Por favor ingresa nombre y correo');
+      return;
+    }
+    const balNum = parseFloat(newClientBalance) || 25000;
+    const created = createNewAccount(
+      newClientName.trim(),
+      newClientEmail.trim(),
+      '123456',
+      balNum,
+      newClientPhone.trim(),
+      false
+    );
+    sounds.playIPhoneTriTone();
+    setShowCreateClientModal(false);
+    setNewClientName('');
+    setNewClientEmail('');
+    setRegisteredUsers(getStoredUsers());
+  };
 
   // Secret 3-tap counter on user avatar
   const [secretTapCount, setSecretTapCount] = useState(0);
@@ -111,8 +154,18 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
   };
 
   const filteredTransfers = transfers.filter((t) => {
-    if (movementFilter === 'egresos' && t.tipo !== 'Egreso') return false;
-    if (movementFilter === 'ingresos' && t.tipo !== 'Ingreso') return false;
+    const isUserSender = t.emisor.toLowerCase().trim() === user.name.toLowerCase().trim();
+    const isUserReceiver = t.receptor.toLowerCase().trim() === user.name.toLowerCase().trim();
+    const isUserRelevant = isUserSender || isUserReceiver;
+
+    if (movementFilter === 'egresos') {
+      if (isUserRelevant && !isUserSender) return false;
+      if (!isUserRelevant && t.tipo !== 'Egreso') return false;
+    }
+    if (movementFilter === 'ingresos') {
+      if (isUserRelevant && !isUserReceiver) return false;
+      if (!isUserRelevant && t.tipo !== 'Ingreso') return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -141,19 +194,34 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
             <Menu className="w-6 h-6" />
           </button>
 
-          {/* Center: User Avatar & Name */}
-          <div 
-            onClick={handleSecretTap}
-            className="flex items-center gap-2 cursor-pointer select-none py-1 px-3 rounded-full hover:bg-white/10 transition-colors"
-            title="Toca 3 veces para acceso administrativo"
-          >
-            <div className="w-8 h-8 rounded-full bg-blue-400/30 border border-sky-300 flex items-center justify-center font-bold text-xs text-white shadow-xs">
-              {user.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+          {/* Center: User Avatar & Name + Quick Switcher Button */}
+          <div className="flex items-center gap-1.5">
+            <div 
+              onClick={handleSecretTap}
+              className="flex items-center gap-2 cursor-pointer select-none py-1 px-2.5 rounded-full hover:bg-white/10 transition-colors"
+              title="Toca 3 veces para acceso administrativo"
+            >
+              <div className="w-8 h-8 rounded-full bg-blue-400/30 border border-sky-300 flex items-center justify-center font-bold text-xs text-white shadow-xs">
+                {user.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] text-blue-200 block leading-none">Hola</span>
+                <span className="font-bold text-sm text-white leading-tight">{user.name.split(' ')[0]}</span>
+              </div>
             </div>
-            <div className="text-left">
-              <span className="text-[10px] text-blue-200 block leading-none">Hola</span>
-              <span className="font-bold text-sm text-white leading-tight">{user.name.split(' ')[0]}</span>
-            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRegisteredUsers(getStoredUsers());
+                setShowSwitchAccountModal(true);
+              }}
+              className="flex items-center gap-1 py-1 px-2 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-[11px] font-semibold border border-white/20 transition-all cursor-pointer shadow-xs"
+              title="Cambiar entre clientes de este entorno"
+            >
+              <Users className="w-3.5 h-3.5 text-sky-200" />
+              <span>Cuentas ({registeredUsers.length})</span>
+            </button>
           </div>
 
           {/* Right: Help & Notification Bell */}
@@ -409,7 +477,14 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
           {/* Transfers List */}
           <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden shadow-xs">
             {filteredTransfers.slice(0, 10).map((transfer) => {
-              const isEgreso = transfer.tipo === 'Egreso';
+              const isUserSender = transfer.emisor.toLowerCase().trim() === user.name.toLowerCase().trim();
+              const isUserReceiver = transfer.receptor.toLowerCase().trim() === user.name.toLowerCase().trim();
+              const isEgreso = isUserSender ? true : isUserReceiver ? false : transfer.tipo === 'Egreso';
+              const displayName = isEgreso 
+                ? (isUserSender ? `Para: ${transfer.receptor}` : transfer.receptor)
+                : (isUserReceiver ? `De: ${transfer.emisor}` : transfer.emisor);
+              const displayBank = isEgreso ? transfer.bancoReceptor : transfer.bancoEmisor;
+
               return (
                 <div
                   key={transfer.id}
@@ -424,13 +499,13 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
                     </div>
                     <div className="min-w-0">
                       <span className="font-bold text-xs text-slate-900 block truncate">
-                        {isEgreso ? transfer.receptor : transfer.emisor}
+                        {displayName}
                       </span>
                       <span className="text-[11px] text-slate-500 block truncate">
                         {transfer.concepto}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono block">
-                        {transfer.fecha} • {transfer.bancoReceptor}
+                        {transfer.fecha} • {displayBank}
                       </span>
                     </div>
                   </div>
@@ -662,14 +737,18 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
                   type="button"
                   onClick={() => {
                     setShowSideDrawer(false);
-                    onLogout();
+                    setRegisteredUsers(getStoredUsers());
+                    setShowSwitchAccountModal(true);
                   }}
                   className="w-full text-left flex items-center justify-between py-2 text-sky-300 hover:text-white cursor-pointer border-t border-white/10 pt-3"
                 >
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4" />
-                    <span>Cambiar de usuario</span>
+                    <span>Cambiar de cuenta ({registeredUsers.length})</span>
                   </div>
+                  <span className="text-[10px] bg-sky-500/20 px-2 py-0.5 rounded text-sky-200 font-semibold">
+                    Acceder
+                  </span>
                 </button>
               </div>
             </div>
@@ -765,6 +844,209 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
             >
               Entendido
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ACCOUNT SWITCHER MODAL (Switch instantly between registered accounts) ================= */}
+      {showSwitchAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in select-none">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl relative border border-slate-100 flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-[#004481] flex items-center justify-center">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#043263]">Cuentas en este Entorno</h3>
+                  <p className="text-[10px] text-slate-500">Accede a tus clientes registrados o agrega más</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSwitchAccountModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Account List */}
+            <div className="space-y-2 overflow-y-auto pr-1 flex-1 py-1">
+              {registeredUsers.map((u) => {
+                const isActive = u.id === user.id;
+                return (
+                  <div
+                    key={u.id}
+                    onClick={() => {
+                      if (!isActive && onSwitchUser) {
+                        sounds.playIPhoneTriTone();
+                        setShowSwitchAccountModal(false);
+                        onSwitchUser(u);
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
+                      isActive
+                        ? 'border-emerald-500 bg-emerald-50/60 shadow-xs ring-1 ring-emerald-500/30'
+                        : 'border-slate-200 hover:bg-blue-50/60 active:scale-[0.99]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                          isActive
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-[#004481] text-white'
+                        }`}
+                      >
+                        {u.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-xs text-[#043263] truncate">
+                            {u.name}
+                          </span>
+                          {isActive && (
+                            <span className="text-[9px] bg-emerald-200 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
+                              Sesión activa
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-mono font-bold text-[#004481] mt-0.5">
+                          Saldo: ${formatCurrency(u.balance)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">
+                          •••• {u.cardLast4} • {u.clabe}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 ml-2">
+                      {isActive ? (
+                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="py-1 px-2.5 bg-[#004481] hover:bg-[#043263] text-white text-[10px] font-bold rounded-lg shadow-xs transition-colors"
+                        >
+                          Acceder
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Add Customer Button */}
+            <div className="pt-3 border-t border-slate-100 mt-2 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSwitchAccountModal(false);
+                  setShowCreateClientModal(true);
+                }}
+                className="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-[#004481] border border-blue-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-[#004481]" />
+                <span>+ Registrar Nuevo Cliente BBVA</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSwitchAccountModal(false);
+                  onLogout();
+                }}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cerrar sesión e ir a pantalla de inicio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CREATE NEW CLIENT MODAL ================= */}
+      {showCreateClientModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in select-none">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative border border-slate-100">
+            <button
+              onClick={() => setShowCreateClientModal(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-blue-50 text-[#004481] flex items-center justify-center mx-auto mb-2">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="font-serif text-lg font-bold text-[#043263]">Registrar Nuevo Cliente</h3>
+              <p className="text-xs text-slate-500">Se guardará permanentemente en el servidor y en tu dispositivo</p>
+            </div>
+
+            <form onSubmit={handleCreateClientSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">Nombre Completo del Titular *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Roberto Silva / María García"
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-[#004481]"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-medium mb-1">Correo Electrónico *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="cliente@bbva.com"
+                  value={newClientEmail}
+                  onChange={(e) => setNewClientEmail(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-[#004481]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">Saldo Inicial (MXN)</label>
+                  <input
+                    type="number"
+                    value={newClientBalance}
+                    onChange={(e) => setNewClientBalance(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-[#004481] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">Teléfono Móvil</label>
+                  <input
+                    type="text"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-[#004481]"
+                  />
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-blue-50/80 rounded-xl text-[11px] text-[#004481] border border-blue-200">
+                Se generará su CLABE interbancaria BBVA única de 18 dígitos y tarjeta digital de inmediato.
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-[#004481] hover:bg-[#043263] text-white rounded-xl font-bold text-xs shadow-md transition-colors mt-2 cursor-pointer"
+              >
+                Crear Cliente y Acceder
+              </button>
+            </form>
           </div>
         </div>
       )}

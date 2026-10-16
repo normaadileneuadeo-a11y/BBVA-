@@ -1,0 +1,166 @@
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
+
+// Exact vector representation of the official BBVA México icon (uploaded image)
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Deep Navy Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#144f94" />
+      <stop offset="40%" stop-color="#0a3d7c" />
+      <stop offset="100%" stop-color="#021d45" />
+    </linearGradient>
+
+    <!-- Diagonal Azure/Cyan Ray Highlight across top-right to center -->
+    <linearGradient id="rayGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4aa8ff" stop-opacity="0.45" />
+      <stop offset="35%" stop-color="#2480e6" stop-opacity="0.25" />
+      <stop offset="70%" stop-color="#0d4e9e" stop-opacity="0.0" />
+      <stop offset="100%" stop-color="#002b66" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Diagonal glossy sheen divider -->
+    <linearGradient id="sheen" x1="85%" y1="0%" x2="55%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32" />
+      <stop offset="25%" stop-color="#64c0ff" stop-opacity="0.18" />
+      <stop offset="60%" stop-color="#186cc7" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Glow for MX -->
+    <filter id="cyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle rounded background -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Diagonal Light Split Beam -->
+  <path d="M 180 0 L 512 0 L 512 360 L 280 512 Z" fill="url(#rayGrad)" />
+  <path d="M 330 0 L 460 0 L 260 512 L 200 512 Z" fill="url(#sheen)" opacity="0.6" />
+
+  <!-- Main BBVA Lettering in Pure Crisp White -->
+  <g fill="#ffffff">
+    <!-- First 'B' -->
+    <path d="M 52 210 L 98 210 C 122 210 134 220 134 238 C 134 250 127 259 116 265 C 131 271 139 283 139 301 C 139 322 124 334 98 334 L 52 334 Z M 78 232 L 78 259 L 95 259 C 107 259 113 254 113 246 C 113 238 107 232 95 232 Z M 78 285 L 78 312 L 97 312 C 109 312 116 306 116 298 C 116 290 109 285 97 285 Z" />
+
+    <!-- Second 'B' -->
+    <path d="M 158 210 L 204 210 C 228 210 240 220 240 238 C 240 250 233 259 222 265 C 237 271 245 283 245 301 C 245 322 230 334 204 334 L 158 334 Z M 184 232 L 184 259 L 201 259 C 213 259 219 254 219 246 C 219 238 213 232 201 232 Z M 184 285 L 184 312 L 203 312 C 215 312 222 306 222 298 C 222 290 215 285 203 285 Z" />
+
+    <!-- 'V' -->
+    <path d="M 264 210 L 290 210 L 322 305 L 354 210 L 380 210 L 336 334 L 308 334 Z" />
+
+    <!-- Stylized 'A' (Elevated peak caret / inverted V rising above the B-B-V) -->
+    <path d="M 342 334 L 406 182 L 420 182 L 484 334 L 456 334 L 413 226 L 370 334 Z" />
+  </g>
+
+  <!-- Cyan Electric 'MX' (Lower right, below the 'A') -->
+  <g fill="#2fe0eb" filter="url(#cyanGlow)">
+    <!-- 'M' -->
+    <path d="M 364 362 L 386 362 L 399 397 L 412 362 L 434 362 L 434 416 L 416 416 L 416 384 L 406 411 L 392 411 L 382 384 L 382 416 L 364 416 Z" />
+    
+    <!-- 'X' -->
+    <path d="M 440 362 L 458 362 L 471 386 L 484 362 L 502 362 L 483 389 L 503 416 L 485 416 L 471 393 L 457 416 L 439 416 L 459 389 Z" />
+  </g>
+</svg>`;
+
+// Maskable icon with 15% safe padding around all sides for Android adaptive icons
+const maskableSvgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGradM" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#144f94" />
+      <stop offset="40%" stop-color="#0a3d7c" />
+      <stop offset="100%" stop-color="#021d45" />
+    </linearGradient>
+    <linearGradient id="rayGradM" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4aa8ff" stop-opacity="0.45" />
+      <stop offset="35%" stop-color="#2480e6" stop-opacity="0.25" />
+      <stop offset="70%" stop-color="#0d4e9e" stop-opacity="0.0" />
+      <stop offset="100%" stop-color="#002b66" stop-opacity="0.0" />
+    </linearGradient>
+    <linearGradient id="sheenM" x1="85%" y1="0%" x2="55%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32" />
+      <stop offset="25%" stop-color="#64c0ff" stop-opacity="0.18" />
+      <stop offset="60%" stop-color="#186cc7" stop-opacity="0.0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full bleed square for Android maskable icon -->
+  <rect width="512" height="512" fill="url(#bgGradM)" />
+  <path d="M 180 0 L 512 0 L 512 360 L 280 512 Z" fill="url(#rayGradM)" />
+  <path d="M 330 0 L 460 0 L 260 512 L 200 512 Z" fill="url(#sheenM)" opacity="0.6" />
+
+  <!-- Centered content scaled into 80% safe zone -->
+  <g transform="translate(51, 51) scale(0.8)">
+    <g fill="#ffffff">
+      <path d="M 52 210 L 98 210 C 122 210 134 220 134 238 C 134 250 127 259 116 265 C 131 271 139 283 139 301 C 139 322 124 334 98 334 L 52 334 Z M 78 232 L 78 259 L 95 259 C 107 259 113 254 113 246 C 113 238 107 232 95 232 Z M 78 285 L 78 312 L 97 312 C 109 312 116 306 116 298 C 116 290 109 285 97 285 Z" />
+      <path d="M 158 210 L 204 210 C 228 210 240 220 240 238 C 240 250 233 259 222 265 C 237 271 245 283 245 301 C 245 322 230 334 204 334 L 158 334 Z M 184 232 L 184 259 L 201 259 C 213 259 219 254 219 246 C 219 238 213 232 201 232 Z M 184 285 L 184 312 L 203 312 C 215 312 222 306 222 298 C 222 290 215 285 203 285 Z" />
+      <path d="M 264 210 L 290 210 L 322 305 L 354 210 L 380 210 L 336 334 L 308 334 Z" />
+      <path d="M 342 334 L 406 182 L 420 182 L 484 334 L 456 334 L 413 226 L 370 334 Z" />
+    </g>
+    <g fill="#2fe0eb">
+      <path d="M 364 362 L 386 362 L 399 397 L 412 362 L 434 362 L 434 416 L 416 416 L 416 384 L 406 411 L 392 411 L 382 384 L 382 416 L 364 416 Z" />
+      <path d="M 440 362 L 458 362 L 471 386 L 484 362 L 502 362 L 483 389 L 503 416 L 485 416 L 471 393 L 457 416 L 439 416 L 459 389 Z" />
+    </g>
+  </g>
+</svg>`;
+
+async function main() {
+  const publicDir = path.resolve(__dirname, '..', 'public');
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+
+  // 1. Write public/icon.svg
+  fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgContent, 'utf-8');
+  console.log('Written public/icon.svg');
+
+  // 2. Generate PNGs using Sharp
+  const svgBuffer = Buffer.from(svgContent);
+  const maskableSvgBuffer = Buffer.from(maskableSvgContent);
+
+  // 512x512 standard
+  await sharp(svgBuffer)
+    .resize(512, 512)
+    .png({ quality: 100 })
+    .toFile(path.join(publicDir, 'pwa-512x512.png'));
+  console.log('Generated pwa-512x512.png');
+
+  // 192x192 mobile
+  await sharp(svgBuffer)
+    .resize(192, 192)
+    .png({ quality: 100 })
+    .toFile(path.join(publicDir, 'pwa-192x192.png'));
+  console.log('Generated pwa-192x192.png');
+
+  // 180x180 Apple touch icon for iOS Safari / iPhone Home Screen
+  await sharp(svgBuffer)
+    .resize(180, 180)
+    .png({ quality: 100 })
+    .toFile(path.join(publicDir, 'apple-touch-icon.png'));
+  console.log('Generated apple-touch-icon.png');
+
+  // 512x512 Maskable for Android Adaptive Icons
+  await sharp(maskableSvgBuffer)
+    .resize(512, 512)
+    .png({ quality: 100 })
+    .toFile(path.join(publicDir, 'pwa-maskable-512x512.png'));
+  console.log('Generated pwa-maskable-512x512.png');
+
+  // 64x64 favicon.png
+  await sharp(svgBuffer)
+    .resize(64, 64)
+    .png()
+    .toFile(path.join(publicDir, 'favicon.png'));
+  console.log('Generated favicon.png');
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

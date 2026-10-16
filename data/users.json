@@ -9,7 +9,7 @@
     "cardNumber": "4152 3134 8921 4921",
     "cardLast4": "4921",
     "clabe": "012 180 004921 82910 4",
-    "balance": 54800.0,
+    "balance": 54800,
     "biometricEnabled": true,
     "createdAt": "2026-01-10",
     "notifications": [
@@ -21,7 +21,7 @@
         "time": "14:20",
         "type": "incoming_transfer",
         "read": true,
-        "amount": 45600.0
+        "amount": 45600
       }
     ]
   },
@@ -35,7 +35,7 @@
     "cardNumber": "4152 8492 0192 8492",
     "cardLast4": "8492",
     "clabe": "012 180 008492 01928 1",
-    "balance": 28450.0,
+    "balance": 28450,
     "biometricEnabled": true,
     "createdAt": "2026-02-15",
     "notifications": [
@@ -47,7 +47,7 @@
         "time": "18:15",
         "type": "outgoing_transfer",
         "read": false,
-        "amount": 1250.0
+        "amount": 1250
       }
     ]
   },
@@ -61,7 +61,7 @@
     "cardNumber": "4152 3918 2910 3918",
     "cardLast4": "3918",
     "clabe": "012 180 003918 29103 9",
-    "balance": 142600.0,
+    "balance": 142600,
     "biometricEnabled": true,
     "createdAt": "2025-11-20",
     "notifications": []
@@ -76,7 +76,7 @@
     "cardNumber": "4152 7291 0482 7291",
     "cardLast4": "7291",
     "clabe": "012 180 007291 04829 3",
-    "balance": 18900.0,
+    "balance": 18900,
     "biometricEnabled": true,
     "createdAt": "2026-03-01",
     "notifications": []

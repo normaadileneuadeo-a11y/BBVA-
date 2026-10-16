@@ -70,7 +70,7 @@ export default function App() {
   // Live top notification banner (iOS / Android bank push alert)
   const [pushBanner, setPushBanner] = useState<{ title: string; message: string } | null>(null);
 
-  // Sync transfers to localStorage
+  // Sync transfers to localStorage and server
   useEffect(() => {
     try {
       localStorage.setItem(GLOBAL_TRANSFERS_KEY, JSON.stringify(transfers));
@@ -78,6 +78,18 @@ export default function App() {
       console.error('Error saving transfers:', e);
     }
   }, [transfers]);
+
+  // Load transfers from server on startup
+  useEffect(() => {
+    fetch('/api/transfers')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((serverTransfers: TransferItem[]) => {
+        if (Array.isArray(serverTransfers) && serverTransfers.length > 0) {
+          setTransfers((prev) => detectDuplicates([...serverTransfers, ...prev]));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Keep user refreshed
   const refreshUser = () => {
@@ -129,6 +141,14 @@ export default function App() {
   const handleTransferComplete = (newTransfer: TransferItem) => {
     setTransfers(prev => [newTransfer, ...prev]);
     refreshUser();
+    
+    // Save to server
+    fetch('/api/transfers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newTransfer),
+    }).catch(() => {});
+
     triggerPushBanner(
       'Transferencia Exitosa',
       `Enviaste $${newTransfer.monto.toFixed(2)} a ${newTransfer.receptor}. Folio #${newTransfer.folio}.`
@@ -229,6 +249,7 @@ export default function App() {
           <BBVAHomeScreen
             user={currentUser}
             onLogout={handleLogout}
+            onSwitchUser={handleSwitchUser}
             onStartTransfer={() => setCurrentScreen('transfer')}
             onSelectVoucher={(t) => setSelectedVoucher(t)}
             onOpenFolderManager={() => setIsFolderModalOpen(true)}

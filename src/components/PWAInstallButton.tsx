@@ -51,12 +51,14 @@ export const PWAInstallButton: React.FC<{ compact?: boolean }> = ({ compact = fa
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-[#004481] flex items-center justify-center text-white font-bold text-sm">
-                BBVA
-              </div>
+              <img 
+                src="/apple-touch-icon.png" 
+                alt="BBVA México Icono" 
+                className="w-14 h-14 rounded-2xl shadow-md border border-slate-100 object-cover" 
+              />
               <div>
                 <h3 className="font-bold text-base text-[#043263]">Instalar BBVA México</h3>
-                <p className="text-xs text-slate-500">PWA Banca Móvil</p>
+                <p className="text-xs text-slate-500">Banca Móvil Oficial • PWA</p>
               </div>
             </div>
 

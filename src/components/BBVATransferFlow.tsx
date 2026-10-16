@@ -50,6 +50,7 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
   // Beneficiary state
   const [isNewContact, setIsNewContact] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{
+    id?: string;
     name: string;
     bank: string;
     account: string;
@@ -97,30 +98,16 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
     };
   }, [currentUser.id]);
 
-  // Combined contacts list: persistent beneficiaries + registered BBVA bank users
-  const combinedContacts = [
-    // 1. Saved custom beneficiaries (Permanently stored on device and server)
-    ...savedBeneficiaries.map((b) => ({
-      id: b.id,
-      name: b.name,
-      bank: b.bank,
-      account: b.account,
-      isCustom: true,
-      isFavorite: b.isFavorite,
-    })),
-    // 2. Other registered bank users
-    ...internalUsers.map((u) => ({
-      id: u.id,
-      name: u.name,
-      bank: 'BBVA México',
-      account: u.clabe || `•••• ${u.cardLast4}`,
-      isCustom: false,
-      isFavorite: false,
-    })),
-  ].filter((c) => {
-    if (!searchContact.trim()) return true;
-    const q = searchContact.toLowerCase();
-    return c.name.toLowerCase().includes(q) || c.bank.toLowerCase().includes(q) || c.account.includes(q);
+  // Split contacts into internal users (this environment) and saved beneficiaries
+  const q = searchContact.toLowerCase().trim();
+  const filteredInternalUsers = internalUsers.filter((u) => {
+    if (!q) return true;
+    return u.name.toLowerCase().includes(q) || u.clabe.includes(q) || u.cardLast4.includes(q);
+  });
+
+  const filteredBeneficiaries = savedBeneficiaries.filter((b) => {
+    if (!q) return true;
+    return b.name.toLowerCase().includes(q) || b.bank.toLowerCase().includes(q) || b.account.includes(q);
   });
 
   // Timer countdown for Token Móvil BBVA
@@ -207,7 +194,7 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
     };
   }, [step, isNewContact]);
 
-  const handleSelectContact = (contact: { name: string; bank: string; account: string }) => {
+  const handleSelectContact = (contact: { id?: string; name: string; bank: string; account: string }) => {
     setSelectedContact(contact);
     setStep(2);
   };
@@ -289,7 +276,8 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
       numAmount,
       concept.trim(),
       reference.trim() || '010318 0',
-      selectedContact?.bank || 'BBVA México'
+      selectedContact?.bank || 'BBVA México',
+      selectedContact?.id
     );
 
     if (result.success && result.transferItem) {
@@ -686,59 +674,121 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
                   </form>
                 )}
 
-                {/* Contacts List */}
+                {/* 1. Cuentas Registradas en este Entorno BBVA */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-bold text-[#004481] uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-[#004481]" />
+                      <span>Cuentas BBVA de este Entorno ({filteredInternalUsers.length})</span>
+                    </h3>
+                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Transferencia Inmediata
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-5">
+                    {filteredInternalUsers.length === 0 ? (
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 text-center text-xs text-slate-500">
+                        No hay otras cuentas registradas coincidentes con la búsqueda.
+                      </div>
+                    ) : (
+                      filteredInternalUsers.map((internalUser) => (
+                        <div
+                          key={internalUser.id}
+                          onClick={() =>
+                            handleSelectContact({
+                              id: internalUser.id,
+                              name: internalUser.name,
+                              bank: 'BBVA México',
+                              account: internalUser.clabe || `•••• ${internalUser.cardLast4}`,
+                            })
+                          }
+                          className="p-3 bg-white hover:bg-blue-50/70 active:bg-blue-100/50 border border-blue-200/80 rounded-xl flex items-center justify-between cursor-pointer transition-all shadow-xs group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-[#004481] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                              {getInitials(internalUser.name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-xs text-slate-900 truncate">
+                                  {internalUser.name}
+                                </span>
+                                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                                  Cliente BBVA • En este Entorno
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-[#004481] font-medium block truncate">
+                                BBVA México • Saldo disponible: ${formatCurrency(internalUser.balance)}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-500 block truncate">
+                                CLABE: {internalUser.clabe}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#004481] transition-colors shrink-0 ml-2" />
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* 2. Otros Beneficiarios Guardados */}
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      Contactos y Beneficiarios Guardados ({combinedContacts.length})
+                      Otros Beneficiarios Guardados ({filteredBeneficiaries.length})
                     </h3>
                   </div>
 
                   <div className="space-y-2">
-                    {combinedContacts.length === 0 ? (
-                      <div className="bg-white p-6 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
-                        No se encontraron contactos. Presiona <strong>Nuevo contacto</strong> arriba para guardar uno.
+                    {filteredBeneficiaries.length === 0 ? (
+                      <div className="bg-white p-4 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                        No hay otros beneficiarios guardados. Usa el botón <strong>+ Nuevo contacto</strong> arriba para guardar uno.
                       </div>
                     ) : (
-                      combinedContacts.map((contact, idx) => (
+                      filteredBeneficiaries.map((beneficiary) => (
                         <div
-                          key={contact.id || idx}
-                          onClick={() => handleSelectContact(contact)}
+                          key={beneficiary.id}
+                          onClick={() =>
+                            handleSelectContact({
+                              id: beneficiary.id,
+                              name: beneficiary.name,
+                              bank: beneficiary.bank,
+                              account: beneficiary.account,
+                            })
+                          }
                           className="p-3 bg-white hover:bg-slate-50 active:bg-blue-50/50 border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer transition-colors shadow-xs group"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-xs text-[#004481] shrink-0">
-                              {getInitials(contact.name)}
+                            <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
+                              {getInitials(beneficiary.name)}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-xs text-slate-900 truncate">{contact.name}</span>
-                                {contact.isCustom ? (
-                                  <span className="text-[9px] bg-sky-100 text-[#004481] font-semibold px-1.5 py-0.2 rounded">
-                                    Guardado
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-semibold px-1.5 py-0.2 rounded">
-                                    Cliente BBVA
-                                  </span>
-                                )}
+                                <span className="font-bold text-xs text-slate-900 truncate">
+                                  {beneficiary.name}
+                                </span>
+                                <span className="text-[9px] bg-sky-100 text-[#004481] font-semibold px-1.5 py-0.2 rounded">
+                                  Guardado
+                                </span>
                               </div>
-                              <span className="text-[11px] text-slate-500 block truncate">{contact.bank}</span>
-                              <span className="text-[10px] font-mono text-slate-400 block truncate">{contact.account}</span>
+                              <span className="text-[11px] text-slate-500 block truncate">
+                                {beneficiary.bank}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400 block truncate">
+                                {beneficiary.account}
+                              </span>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0 ml-2">
-                            {contact.isCustom && (
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteBeneficiary(e, contact.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                title="Eliminar de contactos"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteBeneficiary(e, beneficiary.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Eliminar de contactos"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                             <ChevronRight className="w-4 h-4 text-slate-400" />
                           </div>
                         </div>
