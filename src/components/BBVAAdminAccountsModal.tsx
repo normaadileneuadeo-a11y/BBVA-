@@ -12,14 +12,18 @@ import {
   ShieldCheck, 
   ArrowRightLeft,
   Sparkles,
-  CreditCard
+  CreditCard,
+  Smartphone,
+  Check
 } from 'lucide-react';
 import { BankUser } from '../types/user';
 import { 
   getStoredUsers, 
   createNewAccount, 
   updateUserBalanceDirectly, 
-  saveStoredUsers 
+  saveStoredUsers,
+  getDeviceOwner,
+  setDeviceOwner
 } from '../utils/userStorage';
 import { formatCurrency } from '../utils/transferParser';
 import { sounds } from '../utils/soundEffects';
@@ -40,6 +44,7 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
   onBalanceUpdated,
 }) => {
   const [users, setUsers] = useState<BankUser[]>(getStoredUsers());
+  const [deviceOwnerId, setDeviceOwnerId] = useState<string | null>(() => getDeviceOwner()?.id || null);
   const [isCreating, setIsCreating] = useState(false);
 
   // New user form
@@ -53,6 +58,9 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editBalanceValue, setEditBalanceValue] = useState('');
 
+  // Status notification banner
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -62,14 +70,15 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
       return;
     }
     const balanceNum = parseFloat(initialBalance) || 0;
-    const created = createNewAccount(name, email, password, balanceNum, phone);
+    const created = createNewAccount(name, email, password, balanceNum, phone, false);
     setUsers(getStoredUsers());
     setIsCreating(false);
     setName('');
     setEmail('');
     onBalanceUpdated();
-    sounds.playNotificationSound();
-    alert(`¡Cliente ${created.name} creado con éxito!\nCLABE: ${created.clabe}\nSaldo asignado: ${formatCurrency(created.balance)}`);
+    sounds.playIPhoneTriTone();
+    setStatusBanner(`¡Cliente ${created.name} creado y guardado con éxito! CLABE: ${created.clabe} - Saldo: ${formatCurrency(created.balance)}`);
+    setTimeout(() => setStatusBanner(null), 6000);
   };
 
   const handleSaveBalance = (userId: string) => {
@@ -131,10 +140,20 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
         </div>
 
         {/* Action bar */}
-        <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <span className="text-xs text-slate-600 font-medium">
-            <strong>{users.length}</strong> clientes registrados
-          </span>
+        <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-600 font-medium">
+              <strong>{users.length}</strong> clientes registrados
+            </span>
+            <button
+              type="button"
+              onClick={() => sounds.playIPhoneTriTone()}
+              className="flex items-center gap-1 px-2.5 py-1 bg-blue-100 hover:bg-blue-200 active:scale-95 text-[#004481] text-[11px] font-bold rounded-lg transition-all cursor-pointer shadow-xs border border-blue-200"
+              title="Probar sonido original de iPhone (Tri-tono)"
+            >
+              <span>🔔 Probar Sonido iPhone</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setIsCreating(!isCreating)}
@@ -144,6 +163,22 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
             <span>{isCreating ? 'Ver lista de clientes' : '+ Nuevo Cliente / Saldo'}</span>
           </button>
         </div>
+
+        {/* Live feedback banner */}
+        {statusBanner && (
+          <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-2.5 text-xs text-emerald-800 flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{statusBanner}</span>
+            </div>
+            <button
+              onClick={() => setStatusBanner(null)}
+              className="text-emerald-600 hover:text-emerald-900"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
@@ -248,11 +283,17 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
                           {u.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-sm text-[#043263]">{u.name}</span>
                             {isCurrent && (
                               <span className="text-[10px] bg-[#004481] text-white px-2 py-0.2 rounded-full font-semibold">
                                 Sesión Activa
+                              </span>
+                            )}
+                            {deviceOwnerId === u.id && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.2 rounded-full font-semibold flex items-center gap-1">
+                                <Smartphone className="w-2.5 h-2.5" />
+                                Titular de este celular
                               </span>
                             )}
                           </div>
@@ -327,7 +368,23 @@ export const BBVAAdminAccountsModal: React.FC<BBVAAdminAccountsModalProps> = ({
                         {u.notifications.length} notificaciones recibidas
                       </span>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {deviceOwnerId !== u.id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeviceOwner(u);
+                              setDeviceOwnerId(u.id);
+                              sounds.playNotificationSound();
+                              alert(`Se ha establecido a ${u.name} como titular recordado en este teléfono.`);
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg font-semibold text-[11px] transition-colors"
+                            title="Recordar a este cliente como el titular de este celular"
+                          >
+                            <Smartphone className="w-3 h-3" />
+                            <span>Vincular a este Celular</span>
+                          </button>
+                        )}
                         {!isCurrent && (
                           <button
                             type="button"

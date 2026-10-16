@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 import { defineConfig, Plugin } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -11,6 +12,239 @@ function transferApiPlugin(): Plugin {
   return {
     name: 'transfer-api-plugin',
     configureServer(server) {
+      // User persistence API endpoints (shared across iPhone, PC, and all sessions)
+      server.middlewares.use('/api/users', async (req, res) => {
+        const usersFilePath = path.resolve(process.cwd(), 'data', 'users.json');
+        
+        const readUsersFromFile = () => {
+          try {
+            if (fs.existsSync(usersFilePath)) {
+              const content = fs.readFileSync(usersFilePath, 'utf-8');
+              return JSON.parse(content || '[]');
+            }
+          } catch (e) {
+            console.error('Error reading users file:', e);
+          }
+          return [];
+        };
+
+        const writeUsersToFile = (users: any[]) => {
+          try {
+            const dir = path.dirname(usersFilePath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2), 'utf-8');
+          } catch (e) {
+            console.error('Error writing users file:', e);
+          }
+        };
+
+        const beneficiariesFilePath = path.resolve(process.cwd(), 'data', 'beneficiaries.json');
+
+        const readBeneficiariesFromFile = () => {
+          try {
+            if (fs.existsSync(beneficiariesFilePath)) {
+              const content = fs.readFileSync(beneficiariesFilePath, 'utf-8');
+              return JSON.parse(content || '[]');
+            }
+          } catch (e) {
+            console.error('Error reading beneficiaries file:', e);
+          }
+          return [];
+        };
+
+        const writeBeneficiariesToFile = (items: any[]) => {
+          try {
+            const dir = path.dirname(beneficiariesFilePath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(beneficiariesFilePath, JSON.stringify(items, null, 2), 'utf-8');
+          } catch (e) {
+            console.error('Error writing beneficiaries file:', e);
+          }
+        };
+
+        res.setHeader('Content-Type', 'application/json');
+
+        if (req.method === 'GET') {
+          const users = readUsersFromFile();
+          res.statusCode = 200;
+          res.end(JSON.stringify(users));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const users = readUsersFromFile();
+              const existingIndex = users.findIndex((u: any) => u.id === data.id || (data.email && u.email === data.email));
+              if (existingIndex !== -1) {
+                users[existingIndex] = { ...users[existingIndex], ...data };
+              } else {
+                users.unshift(data);
+              }
+              writeUsersToFile(users);
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true, user: data, users }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'PUT') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              if (Array.isArray(data.users)) {
+                const currentUsers = readUsersFromFile();
+                // Merge carefully: never wipe existing users if incoming list is smaller or default
+                const userMap = new Map<string, any>();
+                currentUsers.forEach((u: any) => userMap.set(u.id, u));
+                data.users.forEach((u: any) => {
+                  userMap.set(u.id, { ...userMap.get(u.id), ...u });
+                });
+                const merged = Array.from(userMap.values());
+                writeUsersToFile(merged);
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, users: merged }));
+                return;
+              }
+              if (data.id) {
+                const users = readUsersFromFile();
+                const idx = users.findIndex((u: any) => u.id === data.id);
+                if (idx !== -1) {
+                  users[idx] = { ...users[idx], ...data };
+                  writeUsersToFile(users);
+                }
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, user: users[idx] }));
+                return;
+              }
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Invalid payload' }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'DELETE') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              if (data.id) {
+                let users = readUsersFromFile();
+                users = users.filter((u: any) => u.id !== data.id);
+                writeUsersToFile(users);
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, users }));
+                return;
+              }
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing id' }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        res.statusCode = 405;
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+      });
+
+      // Beneficiaries persistence endpoint
+      server.middlewares.use('/api/beneficiaries', async (req, res) => {
+        const beneficiariesFilePath = path.resolve(process.cwd(), 'data', 'beneficiaries.json');
+        const readBeneficiariesFromFile = () => {
+          try {
+            if (fs.existsSync(beneficiariesFilePath)) {
+              const content = fs.readFileSync(beneficiariesFilePath, 'utf-8');
+              return JSON.parse(content || '[]');
+            }
+          } catch (e) {
+            console.error('Error reading beneficiaries file:', e);
+          }
+          return [];
+        };
+
+        const writeBeneficiariesToFile = (items: any[]) => {
+          try {
+            const dir = path.dirname(beneficiariesFilePath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(beneficiariesFilePath, JSON.stringify(items, null, 2), 'utf-8');
+          } catch (e) {
+            console.error('Error writing beneficiaries file:', e);
+          }
+        };
+
+        res.setHeader('Content-Type', 'application/json');
+
+        if (req.method === 'GET') {
+          const list = readBeneficiariesFromFile();
+          res.statusCode = 200;
+          res.end(JSON.stringify(list));
+          return;
+        }
+
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const item = JSON.parse(body || '{}');
+              const list = readBeneficiariesFromFile();
+              const existingIdx = list.findIndex((b: any) => b.id === item.id || b.account === item.account);
+              if (existingIdx !== -1) {
+                list[existingIdx] = { ...list[existingIdx], ...item };
+              } else {
+                list.unshift(item);
+              }
+              writeBeneficiariesToFile(list);
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true, item, beneficiaries: list }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'DELETE') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const { id } = JSON.parse(body || '{}');
+              let list = readBeneficiariesFromFile();
+              list = list.filter((b: any) => b.id !== id);
+              writeBeneficiariesToFile(list);
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true, beneficiaries: list }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
+        res.statusCode = 405;
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+      });
+
       server.middlewares.use('/api/analyze-receipt', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { BankNotification } from '../types/user';
 import { formatCurrency } from '../utils/transferParser';
+import { sounds } from '../utils/soundEffects';
 
 interface BBVANotificationsModalProps {
   isOpen: boolean;
@@ -46,7 +47,17 @@ export const BBVANotificationsModal: React.FC<BBVANotificationsModalProps> = ({
         </div>
 
         <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <span>{notifications.length} avisos en tu buzón</span>
+          <div className="flex items-center gap-2">
+            <span>{notifications.length} avisos</span>
+            <button
+              type="button"
+              onClick={() => sounds.playIPhoneTriTone()}
+              className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-[#004481] rounded-full text-[10px] font-semibold flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+              title="Escuchar sonido de notificación iPhone"
+            >
+              <span>🔔 Sonido iPhone</span>
+            </button>
+          </div>
           {notifications.length > 0 && (
             <button
               onClick={onClearAll}

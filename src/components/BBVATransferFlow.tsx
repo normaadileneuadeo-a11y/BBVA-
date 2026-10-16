@@ -20,9 +20,18 @@ import {
 import { TransferItem } from '../types/transfer';
 import { BankUser } from '../types/user';
 import { formatCurrency, KNOWN_BANKS } from '../utils/transferParser';
-import { getStoredUsers, executeTransfer } from '../utils/userStorage';
+import { 
+  getStoredUsers, 
+  executeTransfer, 
+  getSavedBeneficiaries, 
+  saveBeneficiary, 
+  deleteBeneficiary,
+  createNewAccount,
+  SavedBeneficiary 
+} from '../utils/userStorage';
 import { sounds } from '../utils/soundEffects';
 import { generateBBVAPdf } from '../utils/pdfGenerator';
+import { Trash2, Star, UserCheck } from 'lucide-react';
 
 interface BBVATransferFlowProps {
   onBack: () => void;
@@ -46,10 +55,18 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
     account: string;
   } | null>(null);
 
+  // Persistent saved beneficiaries list
+  const [savedBeneficiaries, setSavedBeneficiaries] = useState<SavedBeneficiary[]>(() => getSavedBeneficiaries());
+  const [internalUsers, setInternalUsers] = useState<BankUser[]>(() => 
+    getStoredUsers().filter((u) => u.id !== currentUser.id)
+  );
+
   // New contact form
   const [newName, setNewName] = useState('');
   const [newBank, setNewBank] = useState('BBVA México');
   const [newAccount, setNewAccount] = useState('');
+  const [saveAsClientToo, setSaveAsClientToo] = useState(false);
+  const [clientBalance, setClientBalance] = useState('35000');
 
   // Transfer details
   const [amount, setAmount] = useState('200000');
@@ -66,25 +83,40 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
   // Completed transfer
   const [completedTransfer, setCompletedTransfer] = useState<TransferItem | null>(null);
 
-  // Registered internal users (can transfer to any other user in the app!)
-  const allUsers = getStoredUsers().filter((u) => u.id !== currentUser.id);
+  // Refresh beneficiaries and users
+  useEffect(() => {
+    const handleUpdate = () => {
+      setSavedBeneficiaries(getSavedBeneficiaries());
+      setInternalUsers(getStoredUsers().filter((u) => u.id !== currentUser.id));
+    };
+    window.addEventListener('bbva_beneficiaries_changed', handleUpdate);
+    window.addEventListener('bbva_users_changed', handleUpdate);
+    return () => {
+      window.removeEventListener('bbva_beneficiaries_changed', handleUpdate);
+      window.removeEventListener('bbva_users_changed', handleUpdate);
+    };
+  }, [currentUser.id]);
 
-  // Frequent external contacts matching the user's reference images
-  const frequentExternal = [
-    { name: 'Guillermo de Simón Agu...', bank: 'SANTANDER', account: '123 456 12345678901 2' },
-    { name: 'MIGUEL TREJO', bank: 'STP', account: '646 180 1204 8920 6205' },
-    { name: 'ERNESTO RODRÍGUEZ', bank: 'BBVA Bancomer', account: '012 180 004921 8291 2013' },
-    { name: 'CONSTRUCTORA VALLES DEL NORTE', bank: 'Banorte', account: '072 730 008492 0194 8291' },
-  ];
-
-  // Combined contacts list
+  // Combined contacts list: persistent beneficiaries + registered BBVA bank users
   const combinedContacts = [
-    ...allUsers.map((u) => ({
+    // 1. Saved custom beneficiaries (Permanently stored on device and server)
+    ...savedBeneficiaries.map((b) => ({
+      id: b.id,
+      name: b.name,
+      bank: b.bank,
+      account: b.account,
+      isCustom: true,
+      isFavorite: b.isFavorite,
+    })),
+    // 2. Other registered bank users
+    ...internalUsers.map((u) => ({
+      id: u.id,
       name: u.name,
       bank: 'BBVA México',
       account: u.clabe || `•••• ${u.cardLast4}`,
+      isCustom: false,
+      isFavorite: false,
     })),
-    ...frequentExternal,
   ].filter((c) => {
     if (!searchContact.trim()) return true;
     const q = searchContact.toLowerCase();
@@ -108,6 +140,73 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
     return () => clearInterval(interval);
   }, [step]);
 
+  // iPhone back navigation handler
+  const handleNavigateBack = () => {
+    if (step === 5) {
+      onBack();
+      return;
+    }
+    if (isNewContact) {
+      setIsNewContact(false);
+      return;
+    }
+    if (step === 4) {
+      setStep(3);
+      return;
+    }
+    if (step === 3) {
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      setStep(1);
+      return;
+    }
+    if (step === 1) {
+      onBack();
+      return;
+    }
+  };
+
+  // Touch swipe support for native iOS swipe-to-go-back gesture
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setTouchStartX(e.touches[0].clientX);
+      setTouchStartY(e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX !== null && touchStartY !== null && e.changedTouches.length === 1) {
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+      const deltaY = e.changedTouches[0].clientY - touchStartY;
+      // If user swiped from left edge (>45px rightward, low vertical deviation)
+      if (touchStartX <= 55 && deltaX > 45 && Math.abs(deltaY) < 55) {
+        handleNavigateBack();
+      }
+    }
+    setTouchStartX(null);
+    setTouchStartY(null);
+  };
+
+  // Browser history popstate support (Safari / iOS back gesture)
+  useEffect(() => {
+    const stateId = `bbva-step-${step}-${isNewContact ? 'new' : 'list'}`;
+    window.history.pushState({ screen: 'transfer', step, isNewContact, id: stateId }, '');
+
+    const handlePopState = () => {
+      handleNavigateBack();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [step, isNewContact]);
+
   const handleSelectContact = (contact: { name: string; bank: string; account: string }) => {
     setSelectedContact(contact);
     setStep(2);
@@ -119,12 +218,42 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
       alert('Por favor ingresa nombre y número de cuenta o CLABE');
       return;
     }
-    setSelectedContact({
-      name: newName.trim(),
+    const cleanName = newName.trim();
+    const cleanAccount = newAccount.trim();
+
+    // 1. Guardar PERMANENTEMENTE en el almacenamiento de beneficiarios del teléfono y servidor
+    const saved = saveBeneficiary({
+      name: cleanName,
       bank: newBank,
-      account: newAccount.trim(),
+      account: cleanAccount,
+      alias: cleanName,
+      isFavorite: true,
+    });
+    setSavedBeneficiaries(getSavedBeneficiaries());
+
+    // 2. Si el usuario activó la casilla, también crearlo como cliente bancario BBVA
+    if (saveAsClientToo) {
+      const cleanEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}@bbva.com`;
+      const numBal = parseFloat(clientBalance) || 25000;
+      createNewAccount(cleanName, cleanEmail, '123456', numBal, '667 123 4567', false);
+      setInternalUsers(getStoredUsers().filter((u) => u.id !== currentUser.id));
+    }
+
+    sounds.playNotificationSound();
+
+    setSelectedContact({
+      name: saved.name,
+      bank: saved.bank,
+      account: saved.account,
     });
     setStep(2);
+  };
+
+  const handleDeleteBeneficiary = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    deleteBeneficiary(id);
+    setSavedBeneficiaries(getSavedBeneficiaries());
+    sounds.playKeypadClick();
   };
 
   const handleAmountSubmit = (e: React.FormEvent) => {
@@ -215,23 +344,28 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
   };
 
   return (
-    <div className="bg-[#f4f6f9] min-h-screen text-slate-800 flex flex-col justify-between selection:bg-[#004481] selection:text-white">
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="bg-[#f4f6f9] min-h-screen text-slate-800 flex flex-col justify-between selection:bg-[#004481] selection:text-white"
+    >
       {/* ================= STEP 5: OFFICIAL BBVA SUCCESS RECEIPT (100% IDENTICAL TO IMAGE 2 RIGHT PHONE) ================= */}
       {step === 5 && completedTransfer ? (
         <div className="min-h-screen bg-white flex flex-col justify-between">
-          {/* Top Green Banner (#2d9c5b) */}
-          <div className="bg-[#2d9c5b] text-white pt-6 pb-10 px-5 text-center relative rounded-b-[28px] shadow-sm">
-            {/* Top Bar with 'Transferir' and '✕' */}
+          {/* Top Green Banner (#2d9c5b) with iOS safe area inset */}
+          <div className="bg-[#2d9c5b] text-white pt-[max(env(safe-area-inset-top),22px)] pb-10 px-5 text-center relative rounded-b-[28px] shadow-sm">
+            {/* Top Bar with 'Transferir' and large touch target '✕' */}
             <div className="flex items-center justify-between mb-4">
-              <span className="w-6" />
+              <span className="w-8" />
               <h2 className="text-sm font-semibold tracking-wide">Transferir</h2>
               <button
                 type="button"
                 onClick={onBack}
-                className="w-6 h-6 flex items-center justify-center text-white/90 hover:text-white cursor-pointer"
+                className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center text-white/90 hover:text-white cursor-pointer active:scale-95 touch-manipulation"
                 title="Cerrar"
+                aria-label="Cerrar comprobante"
               >
-                <X className="w-5 h-5 stroke-[2.5]" />
+                <X className="w-6 h-6 stroke-[2.5]" />
               </button>
             </div>
 
@@ -394,22 +528,27 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
       ) : (
         /* ================= REGULAR TRANSFER FLOW ================= */
         <div>
-          {/* BBVA Flow Top Bar */}
-          <div className="bg-[#004481] text-white px-4 py-3.5 flex items-center justify-between shadow-md">
+          {/* BBVA Flow Top Bar with iOS Safe Area Inset and large touch target */}
+          <header className="bg-[#004481] text-white px-4 pt-[max(env(safe-area-inset-top),18px)] pb-3.5 flex items-center justify-between shadow-md sticky top-0 z-30">
             <button
               type="button"
-              onClick={() => {
-                if (step === 1) onBack();
-                else setStep((prev) => (prev - 1) as any);
-              }}
-              className="p-1 text-white hover:bg-white/10 rounded-full cursor-pointer"
+              onClick={handleNavigateBack}
+              className="min-w-[48px] min-h-[48px] -ml-2 flex items-center gap-1.5 px-2 text-white hover:bg-white/10 active:bg-white/20 rounded-full transition-colors cursor-pointer select-none touch-manipulation"
+              aria-label="Volver"
               title="Volver"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-6 h-6 stroke-[2.3]" />
+              <span className="text-xs font-semibold sm:hidden">Atrás</span>
             </button>
             <h2 className="font-semibold text-base">Transferir</h2>
-            <div className="w-6" />
-          </div>
+            <div className="w-14 flex justify-end">
+              {step > 1 && (
+                <span className="text-[11px] font-mono font-medium text-sky-200 bg-white/10 px-2 py-0.5 rounded-full">
+                  {step === 2 ? '1/2' : step === 3 ? '2/2' : ''}
+                </span>
+              )}
+            </div>
+          </header>
 
           <div className="p-4 max-w-md mx-auto w-full">
             {/* STEP 1: Select Beneficiary */}
@@ -448,22 +587,25 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
                 ) : (
                   <form onSubmit={handleCreateContactSubmit} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 text-xs shadow-xs">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      <span className="font-bold text-[#004481]">Agregar nuevo beneficiario</span>
+                      <span className="font-bold text-[#004481] flex items-center gap-1.5">
+                        <UserPlus className="w-4 h-4 text-[#004481]" />
+                        <span>Agregar nuevo beneficiario / cliente</span>
+                      </span>
                       <button
                         type="button"
                         onClick={() => setIsNewContact(false)}
-                        className="text-slate-400 hover:text-slate-600"
+                        className="text-slate-400 hover:text-slate-600 p-1"
                       >
-                        Cancelar
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
 
                     <div>
-                      <label className="block text-slate-600 font-medium mb-1">Nombre del titular *</label>
+                      <label className="block text-slate-600 font-medium mb-1">Nombre completo del titular *</label>
                       <input
                         type="text"
                         required
-                        placeholder="Ej. Guillermo De Simón"
+                        placeholder="Ej. Juan Carlos Pérez"
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-[#004481]"
@@ -496,42 +638,124 @@ export const BBVATransferFlow: React.FC<BBVATransferFlowProps> = ({
                       />
                     </div>
 
+                    {/* Options to persist contact and optionally register as full client */}
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center gap-2 bg-blue-50/60 p-2.5 rounded-lg border border-blue-100">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="text-[11px] text-slate-700">
+                          Se guardará <strong>permanentemente</strong> en tus contactos de este teléfono.
+                        </span>
+                      </div>
+
+                      <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={saveAsClientToo}
+                          onChange={(e) => setSaveAsClientToo(e.target.checked)}
+                          className="mt-0.5 rounded text-[#004481] focus:ring-[#004481]"
+                        />
+                        <div className="text-[11px] text-slate-600">
+                          <span className="font-semibold text-slate-800 block">
+                            Crear también como cliente con cuenta activa BBVA
+                          </span>
+                          <span className="text-[10px] text-slate-500 block">
+                            Aparecerá en el Gestor Central de Clientes con saldo asignado
+                          </span>
+                        </div>
+                      </label>
+
+                      {saveAsClientToo && (
+                        <div className="pl-6 pt-1">
+                          <label className="block text-[11px] text-slate-600 mb-1">Saldo inicial para este cliente ($ MXN):</label>
+                          <input
+                            type="number"
+                            value={clientBalance}
+                            onChange={(e) => setClientBalance(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-mono"
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       type="submit"
-                      className="w-full py-2.5 bg-[#004481] hover:bg-[#043263] text-white font-semibold rounded-lg transition-colors cursor-pointer"
+                      className="w-full py-2.5 bg-[#004481] hover:bg-[#043263] active:bg-[#001844] text-white font-semibold rounded-lg transition-colors cursor-pointer shadow-xs"
                     >
-                      Continuar con este beneficiario
+                      Guardar y continuar transferencia
                     </button>
                   </form>
                 )}
 
                 {/* Contacts List */}
                 <div>
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Contactos Frecuentes
-                  </h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Contactos y Beneficiarios Guardados ({combinedContacts.length})
+                    </h3>
+                  </div>
 
                   <div className="space-y-2">
-                    {combinedContacts.map((contact, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => handleSelectContact(contact)}
-                        className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer transition-colors shadow-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-xs text-[#004481]">
-                            {getInitials(contact.name)}
+                    {combinedContacts.length === 0 ? (
+                      <div className="bg-white p-6 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                        No se encontraron contactos. Presiona <strong>Nuevo contacto</strong> arriba para guardar uno.
+                      </div>
+                    ) : (
+                      combinedContacts.map((contact, idx) => (
+                        <div
+                          key={contact.id || idx}
+                          onClick={() => handleSelectContact(contact)}
+                          className="p-3 bg-white hover:bg-slate-50 active:bg-blue-50/50 border border-slate-200 rounded-xl flex items-center justify-between cursor-pointer transition-colors shadow-xs group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-xs text-[#004481] shrink-0">
+                              {getInitials(contact.name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-xs text-slate-900 truncate">{contact.name}</span>
+                                {contact.isCustom ? (
+                                  <span className="text-[9px] bg-sky-100 text-[#004481] font-semibold px-1.5 py-0.2 rounded">
+                                    Guardado
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-semibold px-1.5 py-0.2 rounded">
+                                    Cliente BBVA
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-slate-500 block truncate">{contact.bank}</span>
+                              <span className="text-[10px] font-mono text-slate-400 block truncate">{contact.account}</span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-bold text-xs text-slate-900 block">{contact.name}</span>
-                            <span className="text-[11px] text-slate-500 block">{contact.bank}</span>
-                            <span className="text-[10px] font-mono text-slate-400 block">{contact.account}</span>
+
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            {contact.isCustom && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteBeneficiary(e, contact.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Eliminar de contactos"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
+                </div>
+
+                {/* Explicit Bottom Navigation for iPhone */}
+                <div className="pt-4 pb-8 text-center">
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-600 font-semibold text-xs rounded-xl border border-slate-200 transition-colors shadow-xs"
+                  >
+                    ← Cancelar y volver al inicio
+                  </button>
                 </div>
               </div>
             )}

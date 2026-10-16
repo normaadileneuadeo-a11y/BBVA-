@@ -126,9 +126,9 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-[#f4f6f9] text-slate-800 flex flex-col justify-between selection:bg-[#004481] selection:text-white pb-20">
+    <div className="min-h-screen bg-[#f4f6f9] text-slate-800 flex flex-col justify-between selection:bg-[#004481] selection:text-white pb-28">
       {/* ================= TOP BLUE HEADER (BBVA 2026 NAVY DESIGN) ================= */}
-      <div className="bg-gradient-to-b from-[#004481] to-[#043263] text-white pt-4 pb-7 px-4 shadow-md relative">
+      <div className="bg-gradient-to-b from-[#004481] to-[#043263] text-white pt-[max(env(safe-area-inset-top),18px)] pb-7 px-4 shadow-md relative">
         {/* Top Navbar Row */}
         <div className="flex items-center justify-between mb-5">
           {/* Left: Hamburger Menu */}
@@ -453,7 +453,7 @@ export const BBVAHomeScreen: React.FC<BBVAHomeScreenProps> = ({
 
       {/* ================= FIXED 5-TAB BOTTOM NAVIGATION BAR (BBVA 2026 DESIGN) ================= */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg max-w-md mx-auto">
-        <div className="grid grid-cols-5 text-center py-2 px-1">
+        <div className="grid grid-cols-5 text-center pt-2 pb-[max(env(safe-area-inset-bottom),8px)] px-1">
           {/* Tab 1: Inicio */}
           <button
             type="button"

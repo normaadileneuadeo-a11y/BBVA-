@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { 
   X, 
   Copy, 
@@ -340,7 +341,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                     type="number"
                     step="0.01"
                     value={formData?.monto || 0}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, monto: parseFloat(e.target.value) || 0 }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, monto: parseFloat(e.target.value) || 0 }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
                   />
                 </div>
@@ -349,7 +350,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <label className="block text-slate-400 mb-1">Tipo de Movimiento</label>
                   <select
                     value={formData?.tipo || 'Egreso'}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, tipo: e.target.value as any }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, tipo: e.target.value as any }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   >
                     <option value="Egreso">Egreso (Gasto / Pago)</option>
@@ -362,7 +363,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <input
                     type="text"
                     value={formData?.emisor || ''}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, emisor: e.target.value }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, emisor: e.target.value }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   />
                 </div>
@@ -372,7 +373,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <input
                     type="text"
                     value={formData?.receptor || ''}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, receptor: e.target.value }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, receptor: e.target.value }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   />
                 </div>
@@ -381,7 +382,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <label className="block text-slate-400 mb-1">Banco Emisor</label>
                   <select
                     value={formData?.bancoEmisor || ''}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, bancoEmisor: e.target.value }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, bancoEmisor: e.target.value }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   >
                     {KNOWN_BANKS.map(b => (
@@ -394,7 +395,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <label className="block text-slate-400 mb-1">Categoría</label>
                   <select
                     value={formData?.categoria || ''}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, categoria: e.target.value }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, categoria: e.target.value }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   >
                     {CATEGORIES.map(cat => (
@@ -408,7 +409,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <input
                     type="text"
                     value={formData?.concepto || ''}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, concepto: e.target.value }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, concepto: e.target.value }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   />
                 </div>
@@ -418,7 +419,7 @@ export const VoucherDetailModal: React.FC<VoucherDetailModalProps> = ({
                   <input
                     type="text"
                     value={formData?.notas || ''}
-                    onChange={(e) => setFormData(prev => prev ? ({ ...prev, notas: e.target.value }) : null)}
+                    onChange={(e) => setFormData((prev: TransferItem | null) => prev ? ({ ...prev, notas: e.target.value }) : null)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                   />
                 </div>

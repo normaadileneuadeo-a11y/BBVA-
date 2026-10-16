@@ -1,0 +1,84 @@
+[
+  {
+    "id": "usr-001",
+    "name": "Norma Adilene",
+    "email": "norma@bbva.com",
+    "password": "123",
+    "phone": "667 123 4567",
+    "accountNumber": "0149218291",
+    "cardNumber": "4152 3134 8921 4921",
+    "cardLast4": "4921",
+    "clabe": "012 180 004921 82910 4",
+    "balance": 54800.0,
+    "biometricEnabled": true,
+    "createdAt": "2026-01-10",
+    "notifications": [
+      {
+        "id": "notif-1",
+        "title": "Depósito SPEI Recibido",
+        "message": "Has recibido una transferencia por $45,600.00 de CONSTRUCTORA VALLES DEL NORTE.",
+        "date": "2026-10-13",
+        "time": "14:20",
+        "type": "incoming_transfer",
+        "read": true,
+        "amount": 45600.0
+      }
+    ]
+  },
+  {
+    "id": "usr-002",
+    "name": "Carlos Mendoza",
+    "email": "carlos@bbva.com",
+    "password": "123",
+    "phone": "667 987 6543",
+    "accountNumber": "0184920192",
+    "cardNumber": "4152 8492 0192 8492",
+    "cardLast4": "8492",
+    "clabe": "012 180 008492 01928 1",
+    "balance": 28450.0,
+    "biometricEnabled": true,
+    "createdAt": "2026-02-15",
+    "notifications": [
+      {
+        "id": "notif-2",
+        "title": "Pago con Tarjeta Aprobado",
+        "message": "Compra autorizada en Mercado Pago por $1,250.00",
+        "date": "2026-10-12",
+        "time": "18:15",
+        "type": "outgoing_transfer",
+        "read": false,
+        "amount": 1250.0
+      }
+    ]
+  },
+  {
+    "id": "usr-003",
+    "name": "Distribuidora del Pacífico S.A.",
+    "email": "ventas@pacifico.com",
+    "password": "123",
+    "phone": "667 345 6789",
+    "accountNumber": "0139182910",
+    "cardNumber": "4152 3918 2910 3918",
+    "cardLast4": "3918",
+    "clabe": "012 180 003918 29103 9",
+    "balance": 142600.0,
+    "biometricEnabled": true,
+    "createdAt": "2025-11-20",
+    "notifications": []
+  },
+  {
+    "id": "usr-004",
+    "name": "Elena Morales",
+    "email": "elena@bbva.com",
+    "password": "123",
+    "phone": "667 555 4321",
+    "accountNumber": "0172910482",
+    "cardNumber": "4152 7291 0482 7291",
+    "cardLast4": "7291",
+    "clabe": "012 180 007291 04829 3",
+    "balance": 18900.0,
+    "biometricEnabled": true,
+    "createdAt": "2026-03-01",
+    "notifications": []
+  }
+]

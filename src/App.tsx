@@ -23,7 +23,9 @@ import {
 import { 
   getActiveUser, 
   setActiveUser, 
-  getStoredUsers 
+  clearActiveUser,
+  getStoredUsers,
+  syncUsersWithServer 
 } from './utils/userStorage';
 import { sounds } from './utils/soundEffects';
 import { BBVASplashScreen } from './components/BBVASplashScreen';
@@ -88,7 +90,7 @@ export default function App() {
   };
 
   const triggerPushBanner = (title: string, message: string) => {
-    sounds.playNotificationSound();
+    sounds.playIPhoneTriTone();
     setPushBanner({ title, message });
     setTimeout(() => {
       setPushBanner(null);
@@ -105,7 +107,21 @@ export default function App() {
     );
   };
 
+  // Listen to user changes across windows or admin modals and sync with server
+  useEffect(() => {
+    syncUsersWithServer().then(() => {
+      refreshUser();
+    }).catch(() => {});
+
+    const handleUpdate = () => {
+      refreshUser();
+    };
+    window.addEventListener('bbva_users_changed', handleUpdate);
+    return () => window.removeEventListener('bbva_users_changed', handleUpdate);
+  }, [currentUser.id]);
+
   const handleLogout = () => {
+    clearActiveUser();
     setCurrentScreen('login');
     triggerPushBanner('BBVA Seguridad', 'Has cerrado sesión con seguridad.');
   };
